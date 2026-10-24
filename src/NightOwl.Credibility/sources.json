@@ -1,0 +1,35 @@
+{
+  "official": {
+    "suffixes": [".gov", ".gov.uk", ".gov.kz", ".gov.ru", ".edu", ".mil", ".int", ".europa.eu"],
+    "domains": [
+      "who.int", "un.org", "nasa.gov", "kremlin.ru", "government.ru", "mid.ru",
+      "cbr.ru", "akorda.kz", "primeminister.kz", "europa.eu",
+      "unicef.org", "worldbank.org", "imf.org", "oecd.org", "wto.org",
+      "rospotrebnadzor.ru", "ecdc.europa.eu"
+    ]
+  },
+  "media": {
+    "suffixes": [],
+    "domains": [
+      "reuters.com", "apnews.com", "bbc.com", "bbc.co.uk", "theguardian.com",
+      "nytimes.com", "dw.com", "bloomberg.com", "ft.com",
+      "tass.ru", "ria.ru", "interfax.ru", "kommersant.ru", "rbc.ru", "meduza.io",
+      "inform.kz", "tengrinews.kz", "euronews.com", "svoboda.org", "france24.com", "aljazeera.com",
+      "cnn.com", "washingtonpost.com", "lenta.ru", "vedomosti.ru", "novayagazeta.eu"
+    ]
+  },
+  "reference": {
+    "suffixes": [],
+    "domains": [
+      "wikipedia.org", "britannica.com", "nature.com", "science.org",
+      "arxiv.org", "pubmed.ncbi.nlm.nih.gov", "habr.com", "stackoverflow.com"
+    ]
+  },
+  "unofficial": {
+    "suffixes": [],
+    "domains": [
+      "reddit.com", "x.com", "twitter.com", "facebook.com", "vk.com", "t.me",
+      "medium.com", "quora.com", "pikabu.ru", "otvet.mail.ru", "tiktok.com"
+    ]
+  }
+}
