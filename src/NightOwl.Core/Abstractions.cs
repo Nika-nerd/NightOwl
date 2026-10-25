@@ -19,6 +19,8 @@ public interface ISourceClassifier
 public interface IClaimExtractor
 {
     Task<IReadOnlyList<Claim>> ExtractAsync(SourceDocument doc, string question, CancellationToken ct = default);
+    Task<IReadOnlyList<Claim>> ExtractManyAsync(
+        IReadOnlyList<SourceDocument> docs, string question, CancellationToken ct = default);
 }
 
 public interface IClaimVerifier

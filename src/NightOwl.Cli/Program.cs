@@ -27,6 +27,8 @@ builder.Services.AddNightOwlAi(o =>
 {
     o.ApiKey = geminiKey;
     o.Model = geminiModel;
+    o.MinSecondsBetweenCalls = 3;
+    o.FallbackModels = builder.Configuration.GetSection("Gemini:FallbackModels").Get<List<string>>() ?? [];
 });
 
 builder.Services.AddSingleton(_ =>
@@ -101,20 +103,25 @@ await AnsiConsole.Status().StartAsync("Ищу...", async _ =>
 
 AnsiConsole.MarkupLine($"Найдено уникальных результатов: [bold]{found.Count}[/]");
 
-// ---------- 3. Фильтр релевантности (LLM) ----------
-IReadOnlyList<SearchResult> relevant;
-try
-{
-    relevant = await AnsiConsole.Status().StartAsync("Фильтрую по релевантности...",
-        _ => relevance.FilterAsync(question, found));
-}
-catch (Exception ex)
-{
-    AnsiConsole.MarkupLine($"[yellow]Фильтр недоступен ({Markup.Escape(ex.Message)}). Оставляю все результаты.[/]");
-    relevant = found;
-}
+// ---------- 3. Фильтр релевантности (LLM): по умолчанию выключен, экономим квоту ----------
+// Включить: dotnet user-secrets set "NightOwl:UseRelevanceFilter" "true" --project src/NightOwl.Cli
+var useRelevanceFilter = builder.Configuration["NightOwl:UseRelevanceFilter"] == "true";
 
-AnsiConsole.MarkupLine($"После фильтра: [bold]{relevant.Count}[/] (отсеяно {found.Count - relevant.Count})\n");
+IReadOnlyList<SearchResult> relevant = found;
+if (useRelevanceFilter)
+{
+    try
+    {
+        relevant = await AnsiConsole.Status().StartAsync("Фильтрую по релевантности...",
+            _ => relevance.FilterAsync(question, found));
+    }
+    catch (Exception ex)
+    {
+        AnsiConsole.MarkupLine($"[yellow]Фильтр недоступен ({Markup.Escape(ex.Message.Replace("\n", " "))}). Оставляю все результаты.[/]");
+    }
+
+    AnsiConsole.MarkupLine($"После фильтра: [bold]{relevant.Count}[/] (отсеяно {found.Count - relevant.Count})\n");
+}
 
 var table = new Table().AddColumns("Pass", "Tier", "Дата", "Заголовок", "URL");
 foreach (var r in relevant.OrderBy(r => classifier.Classify(r.Url)))
@@ -129,11 +136,10 @@ foreach (var r in relevant.OrderBy(r => classifier.Classify(r.Url)))
 AnsiConsole.Write(table);
 
 // ---------- 4. Извлечение содержимого ----------
-var top = relevant
-    .OrderBy(r => classifier.Classify(r.Url))
-    .ThenByDescending(r => r.PublishedAt ?? DateTimeOffset.MinValue)
-    .Take(8)
-    .ToList();
+const int MaxSources = 4;
+
+// Берём с запасом (+2): часть страниц может не скачаться, и тогда подставится следующий кандидат
+var top = SourceSelector.Select(relevant, classifier, MaxSources + 2);
 
 var docs = new List<SourceDocument>();
 using var gate = new SemaphoreSlim(4);
@@ -147,8 +153,8 @@ await AnsiConsole.Status().StartAsync("Скачиваю страницы...", as
         finally { gate.Release(); }
     });
 
-    var loaded = await Task.WhenAll(tasks);
-    docs.AddRange(loaded.OfType<SourceDocument>());
+    var loaded = await Task.WhenAll(tasks); // порядок сохраняется: сначала самые приоритетные
+    docs.AddRange(loaded.OfType<SourceDocument>().Take(MaxSources));
 });
 
 var docTable = new Table().AddColumns("Tier", "Домен", "Дата", "Символов", "Начало текста");
@@ -163,10 +169,10 @@ foreach (var d in docs.OrderBy(d => d.Tier))
         Markup.Escape(preview.Length > 100 ? preview[..100] + "…" : preview));
 }
 
-AnsiConsole.MarkupLine($"\n[bold]Загружено документов: {docs.Count} из {top.Count}[/]");
+AnsiConsole.MarkupLine($"\n[bold]Используем источников: {docs.Count}[/] (кандидатов: {top.Count})");
 AnsiConsole.Write(docTable);
 
-// ---------- 5. Факты (claims) ----------
+// ---------- 5. Факты (claims): один пакетный вызов LLM на все источники ----------
 var orderedDocs = docs
     .OrderBy(d => d.Tier)
     .ThenByDescending(d => d.PublishedAt ?? DateTimeOffset.MinValue)
@@ -175,35 +181,33 @@ var orderedDocs = docs
 var claimExtractor = host.Services.GetRequiredService<IClaimExtractor>();
 var verifier = host.Services.GetRequiredService<IClaimVerifier>();
 var synthesizer = host.Services.GetRequiredService<IAnswerSynthesizer>();
-
-using var llmGate = new SemaphoreSlim(2); // не больше 2 одновременных вызовов LLM (лимиты free tier)
-
-async Task<IReadOnlyList<Claim>> ExtractSafe(SourceDocument d)
-{
-    await llmGate.WaitAsync();
-    try
-    {
-        return await claimExtractor.ExtractAsync(d, question);
-    }
-    catch (Exception ex)
-    {
-        AnsiConsole.MarkupLine($"[yellow]{Markup.Escape(d.Domain)}: не удалось извлечь факты ({Markup.Escape(ex.Message)})[/]");
-        return Array.Empty<Claim>();
-    }
-    finally
-    {
-        llmGate.Release();
-    }
-}
+var scorer = host.Services.GetRequiredService<IConfidenceScorer>();
 
 var allClaims = new List<Claim>();
-await AnsiConsole.Status().StartAsync("Извлекаю факты из источников...", async _ =>
+try
 {
-    var lists = await Task.WhenAll(orderedDocs.Select(ExtractSafe));
-    allClaims.AddRange(lists.SelectMany(x => x));
-});
+    var extracted = await AnsiConsole.Status().StartAsync("Извлекаю факты из источников...",
+        _ => claimExtractor.ExtractManyAsync(orderedDocs, question));
+    allClaims.AddRange(extracted);
+}
+catch (Exception ex)
+{
+    AnsiConsole.MarkupLine($"[red]Не удалось извлечь факты: {Markup.Escape(ex.Message.Replace("\n", " "))}[/]");
+    return;
+}
 
-AnsiConsole.MarkupLine($"\nИзвлечено фактов: [bold]{allClaims.Count}[/]");
+if (allClaims.Count == 0)
+{
+    AnsiConsole.MarkupLine("[red]В найденных источниках нет фактов по вашему вопросу.[/]");
+    return;
+}
+
+// В список источников попадают только те, из которых реально извлечены факты
+var usedDocs = orderedDocs
+    .Where(d => allClaims.Any(c => string.Equals(c.SourceUrl, d.Origin.Url, StringComparison.OrdinalIgnoreCase)))
+    .ToList();
+
+AnsiConsole.MarkupLine($"\nИзвлечено фактов: [bold]{allClaims.Count}[/], источников с фактами: [bold]{usedDocs.Count}[/]");
 
 // ---------- 6. Кросс-проверка и процент достоверности ----------
 IReadOnlyList<VerifiedClaim> verified;
@@ -214,8 +218,20 @@ try
 }
 catch (Exception ex)
 {
-    AnsiConsole.MarkupLine($"[red]Не удалось проверить факты: {Markup.Escape(ex.Message)}[/]");
-    return;
+    // Запасной режим без LLM: каждый факт оцениваем отдельно, без сопоставления между источниками
+    AnsiConsole.MarkupLine(
+        $"[yellow]Сопоставление источников недоступно ({Markup.Escape(ex.Message.Replace("\n", " "))}). " +
+        "Показываю факты без кросс-проверки, проценты занижены.[/]");
+
+    var now = DateTimeOffset.UtcNow;
+    verified = allClaims
+        .Select(c =>
+        {
+            var g = new ClaimGroup(c.Text, new[] { c }, Array.Empty<Claim>());
+            return new VerifiedClaim(c.Text, scorer.Score(g, plan.NeedsFreshness, now), g.Supporting, g.Contradicting);
+        })
+        .OrderByDescending(v => v.Confidence)
+        .ToList();
 }
 
 if (verified.Count == 0)
@@ -225,8 +241,8 @@ if (verified.Count == 0)
 }
 
 var numberByUrl = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-for (var i = 0; i < orderedDocs.Count; i++)
-    numberByUrl[orderedDocs[i].Origin.Url] = i + 1;
+for (var i = 0; i < usedDocs.Count; i++)
+    numberByUrl[usedDocs[i].Origin.Url] = i + 1;
 
 string Refs(IEnumerable<Claim> list)
     => string.Join(", ", list
@@ -261,11 +277,13 @@ string answer;
 try
 {
     answer = await AnsiConsole.Status().StartAsync("Формулирую ответ...",
-        _ => synthesizer.SynthesizeAsync(question, topClaims, orderedDocs));
+        _ => synthesizer.SynthesizeAsync(question, topClaims, usedDocs));
 }
 catch (Exception ex)
 {
-    answer = $"Не удалось сформировать текст ответа ({ex.Message}). Проверенные факты смотри в таблице выше.";
+    // Запасной ответ без LLM: просто список проверенных фактов
+    answer = "Связный текст не удалось сформировать (" + ex.Message.Replace("\n", " ") + "). Проверенные факты:\n" +
+             string.Join("\n", topClaims.Take(5).Select(v => $"• {v.Text} {Refs(v.Supporting)}"));
 }
 
 // Общая уверенность: среднее по трём лучше всего подтверждённым фактам
@@ -281,9 +299,9 @@ AnsiConsole.Write(new Panel(new Text(answer))   // Text не разбирает 
     .Expand());
 
 AnsiConsole.MarkupLine("\n[bold]Источники:[/]");
-for (var i = 0; i < orderedDocs.Count; i++)
+for (var i = 0; i < usedDocs.Count; i++)
 {
-    var d = orderedDocs[i];
+    var d = usedDocs[i];
     AnsiConsole.MarkupLine(
         $"[[{i + 1}]] {d.Tier} · {Markup.Escape(d.Domain)} · {d.PublishedAt?.ToString("yyyy-MM-dd") ?? "н/д"} · {Markup.Escape(d.Origin.Url)}");
 }
