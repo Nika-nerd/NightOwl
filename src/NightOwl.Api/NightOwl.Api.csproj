@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\NightOwl.Pipeline\NightOwl.Pipeline.csproj" />
+    <ProjectReference Include="..\NightOwl.Core\NightOwl.Core.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>a3633c9c-aefd-4932-87d8-63882d936dea</UserSecretsId>
+  </PropertyGroup>
+
+</Project>

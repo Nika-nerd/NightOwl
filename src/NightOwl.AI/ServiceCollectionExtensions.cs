@@ -26,7 +26,7 @@ public static class ServiceCollectionExtensions
 
                   var interval = TimeSpan.FromSeconds(o.MinSecondsBetweenCalls);
 
-            // У каждой модели свой ограничитель, так как лимиты считаются по моделям отдельно
+            // У каждой модели свой ограничитель: лимиты считаются по моделям отдельно
             IChatClient Build(string model)
                 => new ThrottlingChatClient(client.GetChatClient(model).AsIChatClient(), interval);
 
@@ -35,11 +35,6 @@ public static class ServiceCollectionExtensions
             return o.FallbackModels.Count == 0
                 ? primary
                 : new FallbackChatClient(primary, o.FallbackModels.Select(Build).ToList());
-
-            // В старых версиях пакета метод назывался AsChatClient()
-            return client.GetChatClient(o.Model).AsIChatClient();
-            IChatClient inner = client.GetChatClient(o.Model).AsIChatClient();
-            return new ThrottlingChatClient(inner, TimeSpan.FromSeconds(o.MinSecondsBetweenCalls));
         });
 
         services.AddSingleton<IQueryPlanner, QueryPlanner>();

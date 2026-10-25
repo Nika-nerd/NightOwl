@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/NightOwl.AI/NightOwl.AI.csproj" />
+    <Project Path="src/NightOwl.Api/NightOwl.Api.csproj" />
     <Project Path="src/NightOwl.Cli/NightOwl.Cli.csproj" />
     <Project Path="src/NightOwl.Core/NightOwl.Core.csproj" />
     <Project Path="src/NightOwl.Credibility/NightOwl.Credibility.csproj" />
