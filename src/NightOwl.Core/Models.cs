@@ -26,10 +26,26 @@ public record VerifiedClaim(
     IReadOnlyList<Claim> Contradicting);
 
 public record NightOwlAnswer(
+    string Question,
     string Summary,
     double OverallConfidence,
     IReadOnlyList<VerifiedClaim> Claims,
-    IReadOnlyList<SourceDocument> Sources);
+    IReadOnlyList<SourceDocument> Sources,
+    QueryPlan Plan,
+    IReadOnlyList<string> Warnings);
+
+public enum PipelineStage
+{
+    Planning,
+    Searching,
+    Filtering,
+    Downloading,
+    ExtractingClaims,
+    Verifying,
+    Answering
+}
+
+public record PipelineProgress(PipelineStage Stage, string Message);
 
     public record SearchRequest(
     string Query,

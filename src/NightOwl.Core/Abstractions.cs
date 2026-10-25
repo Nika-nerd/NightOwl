@@ -14,6 +14,7 @@ public interface IContentExtractor
 public interface ISourceClassifier
 {
     SourceTier Classify(string url);
+    IReadOnlyList<string> GetDomains(SourceTier tier);
 }
 
 public interface IClaimExtractor
@@ -51,7 +52,8 @@ public interface IAnswerSynthesizer
 
 public interface INightOwlPipeline
 {
-    Task<NightOwlAnswer> AskAsync(string question, CancellationToken ct = default);
+    Task<NightOwlAnswer> AskAsync(
+        string question, IProgress<PipelineProgress>? progress = null, CancellationToken ct = default);
 }
 
 
