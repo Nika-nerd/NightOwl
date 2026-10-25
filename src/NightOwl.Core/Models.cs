@@ -32,7 +32,8 @@ public record NightOwlAnswer(
     IReadOnlyList<VerifiedClaim> Claims,
     IReadOnlyList<SourceDocument> Sources,
     QueryPlan Plan,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    bool FromCache = false);
 
 public enum PipelineStage
 {

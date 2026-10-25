@@ -6,7 +6,9 @@ namespace NightOwl.Cli;
 public static class ConsoleRenderer
 {
     public static void Render(NightOwlAnswer a)
-    {
+    {  AnsiConsole.Write(new Panel(new Text(a.Summary))
+            .Header($"NightOwl · уверенность {(int)Math.Round(a.OverallConfidence * 100)}%{(a.FromCache ? " · из кэша" : "")}")
+            .Expand());
         AnsiConsole.MarkupLine($"[bold]Вопрос:[/] {Markup.Escape(a.Question)}");
         AnsiConsole.MarkupLine($"[bold]Язык:[/] {a.Plan.QuestionLanguage}  [bold]Нужна свежесть:[/] {a.Plan.NeedsFreshness}");
         foreach (var q in a.Plan.Queries)

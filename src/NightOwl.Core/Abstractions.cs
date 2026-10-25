@@ -68,3 +68,8 @@ public interface IRelevanceFilter
     Task<IReadOnlyList<SearchResult>> FilterAsync(
         string question, IReadOnlyList<SearchResult> candidates, CancellationToken ct = default);
 }
+public interface ICacheStore
+{
+    Task<T?> GetAsync<T>(string key, CancellationToken ct = default) where T : class;
+    Task SetAsync<T>(string key, T value, TimeSpan ttl, CancellationToken ct = default) where T : class;
+}

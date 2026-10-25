@@ -19,7 +19,8 @@ public record AnswerDto(
     string Language,
     bool NeedsFreshness,
     IReadOnlyList<string> Queries,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings,
+    bool FromCache);
 
 public static class AnswerMapper
 {
@@ -51,6 +52,7 @@ public static class AnswerMapper
             a.Plan.QuestionLanguage,
             a.Plan.NeedsFreshness,
             a.Plan.Queries,
-            a.Warnings);
+            a.Warnings,
+            a.FromCache);
     }
 }
