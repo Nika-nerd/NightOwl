@@ -7,6 +7,9 @@
   <ItemGroup>
     <PackageReference Include="Nager.PublicSuffix" Version="3.8.0" />
   </ItemGroup>
+  <ItemGroup>
+  <None Update="sources.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+</ItemGroup>
 
   <ItemGroup>
   <None Update="sources.json" CopyToOutputDirectory="PreserveNewest" />

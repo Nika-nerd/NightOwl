@@ -34,7 +34,9 @@ public static class ServiceCollectionExtensions
         o.Endpoint = configuration[$"{llm}:Endpoint"]
             ?? (useOpenRouter ? "https://openrouter.ai/api/v1/" : o.Endpoint);
         o.MinSecondsBetweenCalls = configuration.GetValue($"{llm}:MinSecondsBetweenCalls", useOpenRouter ? 1.0 : 3.0);
-        o.FallbackModels = configuration.GetSection($"{llm}:FallbackModels").Get<List<string>>() ?? [];
+        o.FallbackModels = (configuration.GetSection("Gemini:FallbackModels").Get<List<string>>() ?? [])
+                .Where(m => !string.IsNullOrWhiteSpace(m))
+                .ToList();
     });
         
 

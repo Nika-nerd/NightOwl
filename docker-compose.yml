@@ -1,0 +1,42 @@
+name: nightowl
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: docker/api.Dockerfile
+    environment:
+      Tavily__ApiKey: ${TAVILY_API_KEY:?Set TAVILY_API_KEY in .env}
+      Gemini__ApiKey: ${GEMINI_API_KEY:?Set GEMINI_API_KEY in .env}
+      Gemini__Model: ${GEMINI_MODEL:?Set GEMINI_MODEL in .env}
+      Gemini__FallbackModels__0: ${GEMINI_FALLBACK_MODEL:-}
+      Gemini__MinSecondsBetweenCalls: ${GEMINI_MIN_SECONDS_BETWEEN_CALLS:-3}
+      # Мы за nginx: доверять X-Forwarded-For, иначе rate limit увидит один IP (nginx) на всех
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+    volumes:
+      - nightowl-data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    # Порт API наружу не публикуется: доступ только через web.
+    # Для отладки можно временно раскомментировать:
+    # ports:
+    #   - "5080:8080"
+
+  web:
+    build:
+      context: .
+      dockerfile: docker/web.Dockerfile
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  nightowl-data:
