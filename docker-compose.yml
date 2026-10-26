@@ -6,13 +6,13 @@ services:
       context: .
       dockerfile: docker/api.Dockerfile
     environment:
-      Tavily__ApiKey: ${TAVILY_API_KEY:?Set TAVILY_API_KEY in .env}
-      Gemini__ApiKey: ${GEMINI_API_KEY:?Set GEMINI_API_KEY in .env}
-      Gemini__Model: ${GEMINI_MODEL:?Set GEMINI_MODEL in .env}
-      Gemini__FallbackModels__0: ${GEMINI_FALLBACK_MODEL:-}
-      Gemini__MinSecondsBetweenCalls: ${GEMINI_MIN_SECONDS_BETWEEN_CALLS:-3}
-      # Мы за nginx: доверять X-Forwarded-For, иначе rate limit увидит один IP (nginx) на всех
-      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+        Tavily__ApiKey: ${TAVILY_API_KEY:?Set TAVILY_API_KEY in .env}
+        Gemini__ApiKey: ${LLM_API_KEY:?Set LLM_API_KEY in .env}
+        Gemini__Model: ${LLM_MODEL:?Set LLM_MODEL in .env}
+        Gemini__Endpoint: ${LLM_ENDPOINT:-https://generativelanguage.googleapis.com/v1beta/openai/}
+        Gemini__FallbackModels__0: ${LLM_FALLBACK_MODEL:-}
+        Gemini__MinSecondsBetweenCalls: ${LLM_MIN_SECONDS_BETWEEN_CALLS:-3}
+        ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
     volumes:
       - nightowl-data:/data
     healthcheck:

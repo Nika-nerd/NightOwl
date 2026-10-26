@@ -57,4 +57,20 @@ public sealed class ThrottlingChatClient(IChatClient inner, TimeSpan minInterval
             _gate.Release();
         }
     }
+
+      private static bool IsDailyQuota(ClientResultException ex)
+    {
+        try
+        {
+            var body = ex.GetRawResponse()?.Content?.ToString() ?? "";
+            return body.Contains("PerDay", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("per-day", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("per_day", StringComparison.OrdinalIgnoreCase)
+                || body.Contains("per day", StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
 }

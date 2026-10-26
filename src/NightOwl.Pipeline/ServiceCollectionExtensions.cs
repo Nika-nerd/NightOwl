@@ -27,17 +27,16 @@ public static class ServiceCollectionExtensions
 
     services.AddNightOwlSearch(o => o.ApiKey = tavilyKey);
     services.AddNightOwlExtraction();
-    services.AddNightOwlAi(o =>
-    {
-        o.ApiKey = llmKey;
-        o.Model = llmModel;
-        o.Endpoint = configuration[$"{llm}:Endpoint"]
-            ?? (useOpenRouter ? "https://openrouter.ai/api/v1/" : o.Endpoint);
-        o.MinSecondsBetweenCalls = configuration.GetValue($"{llm}:MinSecondsBetweenCalls", useOpenRouter ? 1.0 : 3.0);
-        o.FallbackModels = (configuration.GetSection("Gemini:FallbackModels").Get<List<string>>() ?? [])
+  services.AddNightOwlAi(o =>
+        {
+            o.ApiKey = llmKey;
+            o.Model = llmModel;
+            o.Endpoint = configuration["Gemini:Endpoint"] is { Length: > 0 } endpoint ? endpoint : o.Endpoint;
+            o.MinSecondsBetweenCalls = configuration.GetValue("Gemini:MinSecondsBetweenCalls", 3.0);
+            o.FallbackModels = (configuration.GetSection("Gemini:FallbackModels").Get<List<string>>() ?? [])
                 .Where(m => !string.IsNullOrWhiteSpace(m))
                 .ToList();
-    });
+        });
         
 
         services.AddSingleton(_ =>

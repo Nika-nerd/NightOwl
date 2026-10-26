@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NightOwl.Core;
 using NightOwl.Credibility;
+using System.ClientModel;
+using System.Text.Json;
 
 namespace NightOwl.Pipeline;
 
@@ -238,5 +240,39 @@ public sealed class NightOwlPipeline(
         => new(question, summary, 0,
             Array.Empty<VerifiedClaim>(), sources ?? Array.Empty<SourceDocument>(), plan, warnings);
 
-    private static string Describe(Exception ex) => ex.Message.Replace("\r", " ").Replace("\n", " ").Trim();
+        private static string Describe(Exception ex)
+    {
+        var message = ex.Message.Replace("\r", " ").Replace("\n", " ").Trim();
+
+        if (ex is ClientResultException apiError && ExtractApiMessage(apiError) is { } detail)
+            message = $"{message} — {detail}";
+
+        return message;
+    }
+
+    // Достаёт текст ошибки из тела ответа Gemini: {"error":{"message":"..."}} или [{"error":{...}}]
+    private static string? ExtractApiMessage(ClientResultException ex)
+    {
+        try
+        {
+            var body = ex.GetRawResponse()?.Content?.ToString();
+            if (string.IsNullOrWhiteSpace(body)) return null;
+
+            using var doc = JsonDocument.Parse(body);
+            var root = doc.RootElement.ValueKind == JsonValueKind.Array && doc.RootElement.GetArrayLength() > 0
+                ? doc.RootElement[0]
+                : doc.RootElement;
+
+            var text = root.TryGetProperty("error", out var error) && error.TryGetProperty("message", out var message)
+                ? message.GetString()
+                : body;
+
+            text = text?.Replace("\r", " ").Replace("\n", " ").Trim();
+            return text is { Length: > 200 } ? text[..200] + "…" : text;
+        }
+        catch
+        {
+            return null;
+        }
+    }
 }
