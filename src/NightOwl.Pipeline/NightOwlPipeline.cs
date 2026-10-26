@@ -45,22 +45,28 @@ public sealed class NightOwlPipeline(
         // 3. Фильтр релевантности (по желанию)
         var relevant = await FilterAsync(question, found, warnings, ct, Report);
 
-        // 4. Выбор и загрузка источников
+                // 4. Выбор и загрузка источников (с запасом: MaxSources + CandidateReserve)
         Report(PipelineStage.Downloading, $"Скачиваю до {_opt.MaxSources} источников...");
-        var docs = (await DownloadAsync(relevant, ct))
-            .OrderBy(d => d.Tier)
-            .ThenByDescending(d => d.PublishedAt ?? DateTimeOffset.MinValue)
-            .ToList();
+        var loaded = await DownloadAsync(relevant, ct);
 
-        if (docs.Count == 0)
+        if (loaded.Count == 0)
             return NoResult(question, plan, warnings, "Не удалось загрузить ни один источник.");
 
-        // 5. Факты: один пакетный вызов LLM
+        // 5. Факты: один пакетный вызов LLM. Если фактов нет, проверяем запасные источники
         Report(PipelineStage.ExtractingClaims, "Извлекаю факты из источников...");
+        var docs = loaded.Take(_opt.MaxSources).ToList();
         IReadOnlyList<Claim> claims;
         try
         {
             claims = await claimExtractor.ExtractManyAsync(docs, question, ct);
+
+            var reserve = loaded.Skip(docs.Count).ToList();
+            if (claims.Count == 0 && reserve.Count > 0)
+            {
+                Report(PipelineStage.ExtractingClaims, "В основных источниках фактов нет, проверяю запасные...");
+                claims = await claimExtractor.ExtractManyAsync(reserve, question, ct);
+                docs.AddRange(reserve);
+            }
         }
         catch (Exception ex) when (!ct.IsCancellationRequested)
         {
@@ -70,8 +76,17 @@ public sealed class NightOwlPipeline(
                 "Не удалось извлечь факты из источников. Повторите запрос позже.", docs);
         }
 
+        // Порядок источников = нумерация [1], [2] в ответе
+        docs = docs
+            .OrderBy(d => d.Tier)
+            .ThenByDescending(d => d.PublishedAt ?? DateTimeOffset.MinValue)
+            .ToList();
+
         if (claims.Count == 0)
-            return NoResult(question, plan, warnings, "В найденных источниках нет фактов по вашему вопросу.", docs);
+            return NoResult(question, plan, warnings,
+                "В найденных источниках нет прямого ответа на вопрос. Попробуйте уточнить его, " +
+                "например: «рейтинг лучших университетов Великобритании 2026» вместо «лучший университет».",
+                docs);
 
         // В ответ попадают только источники, из которых реально извлечены факты
         var usedDocs = docs
@@ -189,7 +204,6 @@ public sealed class NightOwlPipeline(
 
     private async Task<List<SourceDocument>> DownloadAsync(IReadOnlyList<SearchResult> relevant, CancellationToken ct)
     {
-        // Берём с запасом: часть страниц может не скачаться, тогда подставится следующий кандидат
         var candidates = SourceSelector.Select(relevant, classifier, _opt.MaxSources + _opt.CandidateReserve);
 
         using var gate = new SemaphoreSlim(_opt.MaxDownloadConcurrency);
@@ -200,10 +214,9 @@ public sealed class NightOwlPipeline(
             finally { gate.Release(); }
         }));
 
-        // Порядок сохраняется: сначала самые приоритетные кандидаты
-        return loaded.OfType<SourceDocument>().Take(_opt.MaxSources).ToList();
+        // Порядок сохраняется: сначала самые приоритетные кандидаты; первые MaxSources идут в основной разбор
+        return loaded.OfType<SourceDocument>().ToList();
     }
-
     // Запасной режим без LLM: каждый факт оценивается отдельно, без сопоставления источников
     private IReadOnlyList<VerifiedClaim> ScoreIndividually(IReadOnlyList<Claim> claims, bool needsFreshness)
     {

@@ -11,7 +11,8 @@ public sealed class CachingSearchProvider(
 
     public async Task<IReadOnlyList<SearchResult>> SearchAsync(SearchRequest request, CancellationToken ct = default)
     {
-        var key = CacheKey.For("search", $"{inner.Name}|{JsonSerializer.Serialize(request)}");
+                var key = CacheKey.For("search-v2", $"{inner.Name}|{JsonSerializer.Serialize(request)}");
+
 
         var cached = await cache.GetAsync<List<SearchResult>>(key, ct);
         if (cached is not null) return cached;

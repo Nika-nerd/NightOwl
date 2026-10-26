@@ -22,7 +22,8 @@
     "suffixes": [],
     "domains": [
       "wikipedia.org", "britannica.com", "nature.com", "science.org",
-      "arxiv.org", "pubmed.ncbi.nlm.nih.gov", "habr.com", "stackoverflow.com"
+      "arxiv.org", "pubmed.ncbi.nlm.nih.gov", "habr.com", "stackoverflow.com",
+      "topuniversities.com", "timeshighereducation.com", "shanghairanking.com", "usnews.com"
     ]
   },
   "unofficial": {

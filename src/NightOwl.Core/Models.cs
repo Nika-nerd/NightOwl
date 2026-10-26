@@ -8,7 +8,13 @@ public enum SourceTier
     Unofficial = 4
 }
 
-public record SearchResult(string Title, string Url, string Snippet, DateTimeOffset? PublishedAt, string Provider);
+public record SearchResult(
+    string Title,
+    string Url,
+    string Snippet,
+    DateTimeOffset? PublishedAt,
+    string Provider,
+    double? Relevance = null);
 
 public record SourceDocument(
     SearchResult Origin,
